@@ -1,202 +1,259 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import { useRouter } from 'expo-router';
+import { shareAsync } from 'expo-sharing';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import WebView from 'react-native-webview';
 
-type FileItem = {
-    uri: string;
-    name: string;
-    isDirectory: boolean;
-    size?: number;
-    modificationTime?: number;
-    exists: boolean;
-};
+interface ArchivoInfo {
+    nombre: string;
+    fechaCreacion: Date;
+}
 
 export default function ListarDirectorios() {
-    const [files, setFiles] = useState<FileItem[]>([]);
-    const [currentPath, setCurrentPath] = useState(FileSystem.documentDirectory || '');
-    const router = useRouter();
+    const [archivos, setArchivos] = useState<ArchivoInfo[]>([]);
+    const [pdfVisible, setPdfVisible] = useState(false);
+    const [pdfUri, setPdfUri] = useState('');
 
-    useEffect(() => {
-        loadFiles(currentPath);
-    }, [currentPath]);
+    const styles = StyleSheet.create({
+        container: {
+            flex: 1,
+            padding: 20,
+            backgroundColor: '#fff',
+        },
+        titulo: {
+            fontSize: 24,
+            fontWeight: 'bold',
+            marginBottom: 20,
+            textAlign: 'center',
+        },
+        item: {
+            padding: 15,
+            borderBottomWidth: 1,
+            borderBottomColor: '#ccc',
+        },
+        nombreArchivo: {
+            fontSize: 16,
+            fontWeight: 'bold',
+        },
+        fechaCreacion: {
+            fontSize: 12,
+            color: '#666',
+            marginTop: 5,
+        },
+        itemHeader: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+        },
+        itemInfo: {
+            flex: 1,
+        },
+        boton: {
+            backgroundColor: '#023c69',
+            padding: 5,
+            borderRadius: 5,
+            marginTop: 10,
+        },
+        textoBoton: {
+            color: 'white',
+            fontWeight: 'bold',
+            textAlign: 'center',
+        },
+        sinArchivos: {
+            textAlign: 'center',
+            marginTop: 20,
+            fontSize: 16,
+            color: '#666',
+        },
+        botonesContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10
+        },
+        modalContainer: {
+            flex: 1,
+            backgroundColor: 'white',
+        },
+        modalHeader: {
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            padding: 10,
+            backgroundColor: '#f5f5f5',
+        },
+        webview: {
+            flex: 1,
+        },
+    });
 
-    const loadFiles = async (path: string) => {
+    const cargarArchivos = async () => {
         try {
-            const files = await FileSystem.readDirectoryAsync(path);
-            const fileDetails = await Promise.all(
-                files.map(async (file) => {
-                    const filePath = `${path}${file}`;
-                    const info = await FileSystem.getInfoAsync(filePath);
-                    return {
-                        uri: filePath,
-                        name: file,
-                        isDirectory: info.isDirectory,
-                        size: info.exists ? info.size : undefined,
-                        modificationTime: info.exists ? info.modificationTime : undefined,
-                        exists: info.exists,
-                    };
-                })
-            );
-            setFiles(fileDetails);
+            const directorio = `${FileSystem.documentDirectory}EscaneosDocApp/`;
+            const dirInfo = await FileSystem.getInfoAsync(directorio);
+            
+            if (dirInfo.exists) {
+                const archivos = await FileSystem.readDirectoryAsync(directorio);
+                const archivosPDF = archivos.filter(archivo => archivo.endsWith('.pdf'));
+                
+                const archivosConInfo = await Promise.all(
+                    archivosPDF.map(async (archivo) => {
+                        const info = await FileSystem.getInfoAsync(`${directorio}${archivo}`);
+                        if (info.exists && !info.isDirectory) {
+                            return {
+                                nombre: archivo,
+                                fechaCreacion: new Date(info.modificationTime)
+                            };
+                        }
+                        return {
+                            nombre: archivo,
+                            fechaCreacion: new Date()
+                        };
+                    })
+                );
+
+                // Ordenar por fecha de creación (más reciente primero)
+                archivosConInfo.sort((a, b) => b.fechaCreacion.getTime() - a.fechaCreacion.getTime());
+                
+                setArchivos(archivosConInfo);
+            } else {
+                setArchivos([]);
+            }
         } catch (error) {
             console.error('Error al cargar archivos:', error);
             Alert.alert('Error', 'No se pudieron cargar los archivos');
         }
     };
 
-    const handleNavigate = (file: FileItem) => {
-        if (file.isDirectory) {
-            setCurrentPath(file.uri + '/');
-        }
-    };
-
-    const handleGoBack = () => {
-        if (currentPath !== FileSystem.documentDirectory) {
-            const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/', currentPath.length - 2)) + '/';
-            setCurrentPath(parentPath);
-        }
-    };
-
-    const handleDelete = async (file: FileItem) => {
+    const compartirArchivo = async (nombreArchivo: string) => {
         try {
-            if (file.isDirectory) {
-                await FileSystem.deleteAsync(file.uri, { idempotent: true });
-            } else {
-                await FileSystem.deleteAsync(file.uri);
-            }
-            Alert.alert('Éxito', 'Archivo eliminado correctamente');
-            loadFiles(currentPath);
+            const rutaArchivo = `${FileSystem.documentDirectory}EscaneosDocApp/${nombreArchivo}`;
+            await shareAsync(rutaArchivo, {
+                dialogTitle: "Compartir PDF",
+                mimeType: 'application/pdf',
+                UTI: 'com.adobe.pdf'
+            });
         } catch (error) {
-            console.error('Error al eliminar:', error);
+            console.error('Error al compartir archivo:', error);
+            Alert.alert('Error', 'No se pudo compartir el archivo');
+        }
+    };
+
+    const eliminarArchivo = async (nombreArchivo: string) => {
+        try {
+            Alert.alert(
+                "Confirmar eliminación",
+                "¿Estás seguro de que deseas eliminar este archivo?",
+                [
+                    {
+                        text: "Cancelar",
+                        style: "cancel"
+                    },
+                    {
+                        text: "Eliminar",
+                        onPress: async () => {
+                            const rutaArchivo = `${FileSystem.documentDirectory}EscaneosDocApp/${nombreArchivo}`;
+                            await FileSystem.deleteAsync(rutaArchivo);
+                            cargarArchivos(); // Recargar la lista
+                            Alert.alert("Éxito", "Archivo eliminado correctamente");
+                        },
+                        style: "destructive"
+                    }
+                ]
+            );
+        } catch (error) {
+            console.error('Error al eliminar archivo:', error);
             Alert.alert('Error', 'No se pudo eliminar el archivo');
         }
     };
 
-    const formatSize = (bytes?: number) => {
-        if (!bytes) return 'N/A';
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        if (bytes === 0) return '0 Byte';
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
-        return Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
+    const verPDF = async (nombreArchivo: string) => {
+        try {
+            const rutaArchivo = `${FileSystem.documentDirectory}EscaneosDocApp/${nombreArchivo}`;
+            // Convertir el archivo a base64
+            const base64 = await FileSystem.readAsStringAsync(rutaArchivo, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            // Crear una URL de datos
+            setPdfUri(`data:application/pdf;base64,${base64}`);
+            setPdfVisible(true);
+        } catch (error) {
+            console.error('Error al abrir el PDF:', error);
+            Alert.alert('Error', 'No se pudo abrir el archivo');
+        }
     };
 
-    const formatDate = (timestamp?: number) => {
-        if (!timestamp) return 'N/A';
-        return new Date(timestamp).toLocaleString();
+    const formatearFecha = (fecha: Date) => {
+        return fecha.toLocaleString('es-ES', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     };
+
+    useEffect(() => {
+        cargarArchivos();
+    }, []);
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
-                    <Text style={styles.backButtonText}>← Volver</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={handleGoBack}
-                    disabled={currentPath === FileSystem.documentDirectory}
-                >
-                    <Text style={styles.backButtonText}>↑ Subir</Text>
-                </TouchableOpacity>
-            </View>
-
-            <Text style={styles.pathText}>Ruta actual: {currentPath}</Text>
-
-            <FlatList
-                data={files}
-                keyExtractor={(item) => item.uri}
-                renderItem={({ item }) => (
-                    <View style={styles.itemContainer}>
-                        <TouchableOpacity 
-                            style={styles.itemContent}
-                            onPress={() => handleNavigate(item)}
-                        >
-                            <Text style={styles.itemText}>
-                                {item.isDirectory ? '📁 ' : '📄 '}
-                                {item.name}
-                            </Text>
-                            <View style={styles.itemDetails}>
-                                <Text style={styles.detailText}>
-                                    {formatSize(item.size)}
-                                </Text>
-                                <Text style={styles.detailText}>
-                                    {formatDate(item.modificationTime)}
-                                </Text>
+            <Text style={styles.titulo}>Documentos Escaneados</Text>
+            {archivos.length === 0 ? (
+                <Text style={styles.sinArchivos}>No hay documentos escaneados</Text>
+            ) : (
+                <FlatList
+                    data={archivos}
+                    keyExtractor={(item) => item.nombre}
+                    renderItem={({ item }) => (
+                        <View style={styles.item}>
+                            <View style={styles.itemHeader}>
+                                <View style={styles.itemInfo}>
+                                    <Text style={styles.nombreArchivo}>{item.nombre}</Text>
+                                    <Text style={styles.fechaCreacion}>
+                                        Creado: {formatearFecha(item.fechaCreacion)}
+                                    </Text>
+                                </View>
+                                <View style={styles.botonesContainer}>
+                                    <TouchableOpacity
+                                        onPress={() => verPDF(item.nombre)}
+                                    >
+                                        <Ionicons name="eye-outline" size={32} color="#023c69"/>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => compartirArchivo(item.nombre)}
+                                    >
+                                        <Ionicons name="share-outline" size={32} color="black"/>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => eliminarArchivo(item.nombre)}
+                                    >
+                                        <Ionicons name="trash-outline" size={32} color="red"/>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={[styles.actionButton, styles.deleteButton]}
-                            onPress={() => handleDelete(item)}
-                        >
-                            <Text style={styles.actionButtonText}>Eliminar</Text>
+                        </View>
+                    )}
+                />
+            )}
+
+            <Modal
+                visible={pdfVisible}
+                animationType="slide"
+                onRequestClose={() => setPdfVisible(false)}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalHeader}>
+                        <TouchableOpacity onPress={() => setPdfVisible(false)}>
+                            <Ionicons name="close" size={32} color="black"/>
                         </TouchableOpacity>
                     </View>
-                )}
-            />
+                    <WebView
+                        style={styles.webview}
+                        source={{ uri: pdfUri }}
+                    />
+                </View>
+            </Modal>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 20,
-        backgroundColor: '#fff',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 20,
-    },
-    pathText: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 10,
-    },
-    backButton: {
-        padding: 10,
-    },
-    backButtonText: {
-        fontSize: 16,
-        color: '#007AFF',
-    },
-    itemContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    itemContent: {
-        flex: 1,
-    },
-    itemText: {
-        fontSize: 16,
-        marginBottom: 5,
-    },
-    itemDetails: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    detailText: {
-        fontSize: 12,
-        color: '#666',
-    },
-    actionButton: {
-        padding: 10,
-        borderRadius: 5,
-        marginLeft: 10,
-        backgroundColor: '#FF3B30',
-    },
-    deleteButton: {
-        backgroundColor: '#FF3B30',
-    },
-    actionButtonText: {
-        color: '#fff',
-        fontSize: 14,
-    },
-});

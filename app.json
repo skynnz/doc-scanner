@@ -20,7 +20,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET"
-      ]
+      ],
+      "package": "com.skynnz.docscanner"
     },
     "web": {
       "bundler": "metro",
@@ -46,6 +47,9 @@
             "WRITE_EXTERNAL_STORAGE"
           ]
         }
+      ],
+      [
+        "expo-document-picker"
       ]
     ],
     "experiments": {
