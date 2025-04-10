@@ -5,11 +5,20 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "doc-scanner",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fabrizzio.docscanner"
     },
     "android": {
       "adaptiveIcon": {
@@ -56,12 +65,15 @@
       "typedRoutes": true
     },
     "extra": {
+      "adobeClientId": "7580591ed92c4417bbb73240d951d3b7",
+      "adobeClientSecret": "p8e-f7q_f3_UwE3u6V4Q-sh04wt9IFU3Jvfl",
+      "AdobeOrg": "480F206267F5CD000A495FE2@AdobeOrg",
       "router": {
         "origin": false
       },
       "eas": {
         "projectId": "f244068c-e888-496a-a529-ef59b14e3415"
-      }
+      }      
     },
     "owner": "skynnz"
   }

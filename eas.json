@@ -6,17 +6,29 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "ADOBE_CLIENT_ID": "dev_client_id",
+        "ADOBE_CLIENT_SECRET": "dev_client_secret"
+      },
       "android": {
         "gradleCommand": ":app:assembleDebug"
       }
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "ADOBE_CLIENT_ID": "staging_client_id",
+        "ADOBE_CLIENT_SECRET": "staging_client_secret"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "env": {
+        "ADOBE_CLIENT_ID": "prod_client_id",
+        "ADOBE_CLIENT_SECRET": "prod_client_secret"
+      },
       "android": {
         "buildType": "app-bundle"
       }
