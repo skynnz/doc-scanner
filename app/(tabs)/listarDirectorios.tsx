@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { shareAsync } from 'expo-sharing';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -80,6 +80,7 @@ export default function ListarDirectorios() {
             justifyContent: 'flex-end',
             padding: 10,
             backgroundColor: '#f5f5f5',
+            marginTop: 30,
         },
         webview: {
             flex: 1,
@@ -169,13 +170,34 @@ export default function ListarDirectorios() {
     const verPDF = async (nombreArchivo: string) => {
         try {
             const rutaArchivo = `${FileSystem.documentDirectory}EscaneosDocApp/${nombreArchivo}`;
-            // Convertir el archivo a base64
-            const base64 = await FileSystem.readAsStringAsync(rutaArchivo, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            // Crear una URL de datos
-            setPdfUri(`data:application/pdf;base64,${base64}`);
-            setPdfVisible(true);
+            console.log('Ruta del archivo:', rutaArchivo);
+            
+            const fileExists = await FileSystem.getInfoAsync(rutaArchivo);
+            if (!fileExists.exists) {
+                Alert.alert('Error', 'El archivo no existe');
+                return;
+            }
+    
+            // Solución específica para iOS
+            if (Platform.OS === 'ios') {
+                // Opción 1: Usar WebView con URI directa (iOS 11+)
+                setPdfUri(rutaArchivo);
+                setPdfVisible(true);
+                
+                // Opción 2: Usar expo-document-picker para visualización nativa
+                // await DocumentPicker.getDocumentAsync({
+                //     uri: rutaArchivo,
+                //     copyToCacheDirectory: true,
+                //     type: 'application/pdf',
+                // });
+            } else {
+                // Mantén la implementación actual para Android
+                const base64 = await FileSystem.readAsStringAsync(rutaArchivo, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+                setPdfUri(`data:application/pdf;base64,${base64}`);
+                setPdfVisible(true);
+            }
         } catch (error) {
             console.error('Error al abrir el PDF:', error);
             Alert.alert('Error', 'No se pudo abrir el archivo');
@@ -195,6 +217,27 @@ export default function ListarDirectorios() {
     useEffect(() => {
         cargarArchivos();
     }, []);
+
+    const VerPDF = () => {
+        return (
+            <View style={StyleSheet.absoluteFill}>
+                <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => {
+                        setPdfVisible(false);
+                    }}>
+                        <Ionicons name="close" size={32} color="black"/>
+                    </TouchableOpacity>
+                </View>
+                <WebView
+                    originWhitelist={['*']}
+                    source={{ uri: pdfUri }}
+                    style={{ flex: 1 }}
+                    onError={(error) => console.error('Error en WebView:', error)}
+                    startInLoadingState={true}
+                />
+            </View>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -243,15 +286,7 @@ export default function ListarDirectorios() {
                 onRequestClose={() => setPdfVisible(false)}
             >
                 <View style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <TouchableOpacity onPress={() => setPdfVisible(false)}>
-                            <Ionicons name="close" size={32} color="black"/>
-                        </TouchableOpacity>
-                    </View>
-                    <WebView
-                        style={styles.webview}
-                        source={{ uri: pdfUri }}
-                    />
+                    <VerPDF />
                 </View>
             </Modal>
         </View>

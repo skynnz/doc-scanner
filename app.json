@@ -18,7 +18,9 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fabrizzio.docscanner"
+      "bundleIdentifier": "com.fabrizzio.docscanner",
+      "usesIcloudStorage": true,
+      "fileExtensions": ["pdf"]
     },
     "android": {
       "adaptiveIcon": {
